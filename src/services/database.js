@@ -135,6 +135,15 @@ class DatabaseService {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // 通用应用数据表（KV存储，用于轻量持久化前端结构化数据）
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS app_data (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
   }
 
   // 通用查询方法

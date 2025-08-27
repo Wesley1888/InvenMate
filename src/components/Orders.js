@@ -19,6 +19,7 @@ import {
 } from 'antd';
 import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null };
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -52,34 +53,34 @@ const Orders = () => {
     loadOrders();
   }, []);
 
-  const loadOrders = () => {
-    // 模拟数据
-    setOrders([
-      {
-        id: 1,
-        order_number: 'PO-2024-001',
-        order_date: '2024-01-10',
-        supplier: '上海轴承有限公司',
-        total_amount: 1550.00,
-        status: 'completed',
-        notes: '正常采购',
-        items: [
-          { part_model: '轴承 6205-2RS', quantity: 100, unit_price: 15.50, total_price: 1550.00 }
-        ]
-      },
-      {
-        id: 2,
-        order_number: 'PO-2024-002',
-        order_date: '2024-01-12',
-        supplier: '北京密封件厂',
-        total_amount: 560.00,
-        status: 'pending',
-        notes: '等待发货',
-        items: [
-          { part_model: '密封圈 25x32x4', quantity: 200, unit_price: 2.80, total_price: 560.00 }
-        ]
+  const STORAGE_KEY = 'invenmate_orders';
+
+  const persist = async (records) => {
+    try {
+      if (ipcRenderer) {
+        await ipcRenderer.invoke('appData:set', STORAGE_KEY, records);
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
       }
-    ]);
+    } catch {}
+  };
+
+  const loadOrders = async () => {
+    try {
+      if (ipcRenderer) {
+        const data = await ipcRenderer.invoke('appData:get', STORAGE_KEY);
+        if (data) { setOrders(data); return; }
+      } else {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) { setOrders(JSON.parse(raw)); return; }
+      }
+    } catch {}
+    const seed = [
+      { id: 1, order_number: 'PO-2024-001', order_date: '2024-01-10', supplier: '上海轴承有限公司', total_amount: 1550.00, status: 'completed', notes: '正常采购', items: [{ part_model: '轴承 6205-2RS', quantity: 100, unit_price: 15.50, total_price: 1550.00 }] },
+      { id: 2, order_number: 'PO-2024-002', order_date: '2024-01-12', supplier: '北京密封件厂', total_amount: 560.00, status: 'pending', notes: '等待发货', items: [{ part_model: '密封圈 25x32x4', quantity: 200, unit_price: 2.80, total_price: 560.00 }] }
+    ];
+    setOrders(seed);
+    persist(seed);
   };
 
   const handleAdd = () => {
@@ -107,7 +108,7 @@ const Orders = () => {
       title: '确认删除',
       content: '确定要删除这个订单吗？',
       onOk: () => {
-        setOrders(prev => prev.filter(item => item.id !== id));
+        setOrders(prev => { const next = prev.filter(i => i.id !== id); persist(next); return next; });
         message.success('删除成功');
       }
     });
@@ -126,13 +127,7 @@ const Orders = () => {
 
       if (editingOrder) {
         // 更新订单
-        setOrders(prev => 
-          prev.map(item => 
-            item.id === editingOrder.id 
-              ? { ...item, ...orderData, id: item.id }
-              : item
-          )
-        );
+        setOrders(prev => { const next = prev.map(i => i.id === editingOrder.id ? { ...i, ...orderData, id: i.id } : i); persist(next); return next; });
         message.success('更新成功');
       } else {
         // 新增订单
@@ -143,7 +138,7 @@ const Orders = () => {
           total_amount: 0,
           items: []
         };
-        setOrders(prev => [newOrder, ...prev]);
+        setOrders(prev => { const next = [newOrder, ...prev]; persist(next); return next; });
         message.success('订单创建成功');
       }
 
@@ -209,19 +204,14 @@ const Orders = () => {
     {
       title: '操作',
       key: 'action',
+      width: 160,
+      align: 'center',
       render: (_, record) => (
-        <Space size="middle">
-          <Button 
-            type="link" 
-            icon={<EyeOutlined />}
-            onClick={() => handleView(record)}
-          >
-            查看
-          </Button>
+        <span style={{ display: 'inline-flex', gap: 8, whiteSpace: 'nowrap' }}>
           <Button 
             type="link" 
             icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
+            onClick={(e) => { e.stopPropagation(); handleEdit(record); }}
           >
             编辑
           </Button>
@@ -229,11 +219,11 @@ const Orders = () => {
             type="link" 
             danger 
             icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record.id)}
+            onClick={(e) => { e.stopPropagation(); handleDelete(record.id); }}
           >
             删除
           </Button>
-        </Space>
+        </span>
       ),
     },
   ];
@@ -281,6 +271,11 @@ const Orders = () => {
           columns={columns} 
           dataSource={orders}
           rowKey="id"
+          size="small"
+          rowClassName={() => 'clickable-row'}
+          onRow={(record) => ({
+            onClick: () => handleView(record)
+          })}
           pagination={{
             showSizeChanger: true,
             showQuickJumper: true,

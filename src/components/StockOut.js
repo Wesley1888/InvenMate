@@ -18,6 +18,7 @@ import {
 } from 'antd';
 import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null };
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -51,34 +52,34 @@ const StockOut = () => {
     loadStockOutRecords();
   }, []);
 
-  const loadStockOutRecords = () => {
-    // 模拟数据
-    setStockOutRecords([
-      {
-        id: 1,
-        part_model: '轴承 6205-2RS',
-        quantity: 15,
-        unit_price: 15.50,
-        total_amount: 232.50,
-        recipient: '张三',
-        department: '生产部',
-        stock_out_date: '2024-01-15',
-        operator: '李四',
-        notes: '生产线维修使用'
-      },
-      {
-        id: 2,
-        part_model: '密封圈 25x32x4',
-        quantity: 8,
-        unit_price: 2.80,
-        total_amount: 22.40,
-        recipient: '王五',
-        department: '维修部',
-        stock_out_date: '2024-01-14',
-        operator: '赵六',
-        notes: '设备维护'
+  const STORAGE_KEY = 'invenmate_stock_out';
+
+  const persist = async (records) => {
+    try {
+      if (ipcRenderer) {
+        await ipcRenderer.invoke('appData:set', STORAGE_KEY, records);
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
       }
-    ]);
+    } catch {}
+  };
+
+  const loadStockOutRecords = async () => {
+    try {
+      if (ipcRenderer) {
+        const data = await ipcRenderer.invoke('appData:get', STORAGE_KEY);
+        if (data) { setStockOutRecords(data); return; }
+      } else {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) { setStockOutRecords(JSON.parse(raw)); return; }
+      }
+    } catch {}
+    const seed = [
+      { id: 1, part_model: '轴承 6205-2RS', quantity: 15, unit_price: 15.50, total_amount: 232.50, recipient: '张三', department: '生产部', stock_out_date: '2024-01-15', operator: '李四', notes: '生产线维修使用' },
+      { id: 2, part_model: '密封圈 25x32x4', quantity: 8, unit_price: 2.80, total_amount: 22.40, recipient: '王五', department: '维修部', stock_out_date: '2024-01-14', operator: '赵六', notes: '设备维护' }
+    ];
+    setStockOutRecords(seed);
+    persist(seed);
   };
 
   const handleAdd = () => {
@@ -101,7 +102,7 @@ const StockOut = () => {
       title: '确认删除',
       content: '确定要删除这条出库记录吗？',
       onOk: () => {
-        setStockOutRecords(prev => prev.filter(item => item.id !== id));
+        setStockOutRecords(prev => { const next = prev.filter(i => i.id !== id); persist(next); return next; });
         message.success('删除成功');
       }
     });
@@ -135,13 +136,7 @@ const StockOut = () => {
 
       if (editingRecord) {
         // 更新记录
-        setStockOutRecords(prev => 
-          prev.map(item => 
-            item.id === editingRecord.id 
-              ? { ...item, ...stockOutData, id: item.id }
-              : item
-          )
-        );
+        setStockOutRecords(prev => { const next = prev.map(i => i.id === editingRecord.id ? { ...i, ...stockOutData, id: i.id } : i); persist(next); return next; });
         message.success('更新成功');
       } else {
         // 新增记录
@@ -150,7 +145,7 @@ const StockOut = () => {
           id: Date.now(),
           operator: '当前用户'
         };
-        setStockOutRecords(prev => [newRecord, ...prev]);
+        setStockOutRecords(prev => { const next = [newRecord, ...prev]; persist(next); return next; });
         message.success('出库成功');
       }
 
@@ -227,8 +222,10 @@ const StockOut = () => {
     {
       title: '操作',
       key: 'action',
+      width: 160,
+      align: 'center',
       render: (_, record) => (
-        <Space size="middle">
+        <span style={{ display: 'inline-flex', gap: 8, whiteSpace: 'nowrap' }}>
           <Button 
             type="link" 
             icon={<EditOutlined />}
@@ -244,7 +241,7 @@ const StockOut = () => {
           >
             删除
           </Button>
-        </Space>
+        </span>
       ),
     },
   ];
@@ -267,6 +264,7 @@ const StockOut = () => {
           columns={columns} 
           dataSource={stockOutRecords}
           rowKey="id"
+          size="small"
           pagination={{
             showSizeChanger: true,
             showQuickJumper: true,

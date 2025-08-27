@@ -1,11 +1,73 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 // 检查是否为开发环境
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+let db = null;
+let triedLoadDb = false;
+const kvMemory = new Map();
+const userDataDir = app.getPath('userData');
+const kvFile = path.join(userDataDir, 'app_data.json');
+
+function loadKvFile() {
+  try {
+    if (fs.existsSync(kvFile)) {
+      const raw = fs.readFileSync(kvFile, 'utf8');
+      const obj = JSON.parse(raw || '{}');
+      kvMemory.clear();
+      Object.entries(obj).forEach(([k, v]) => kvMemory.set(k, v));
+    }
+  } catch (e) {
+    console.error('[Main] Failed to load KV file:', e);
+  }
+}
+
+function saveKvFile() {
+  try {
+    const obj = {};
+    kvMemory.forEach((v, k) => { obj[k] = v; });
+    fs.mkdirSync(userDataDir, { recursive: true });
+    fs.writeFileSync(kvFile, JSON.stringify(obj, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[Main] Failed to save KV file:', e);
+  }
+}
+
+function getDb() {
+  if (isDev && process.env.USE_SQLITE !== '1') {
+    // 在开发模式下默认不加载原生模块，避免 ABI 不匹配导致崩溃
+    return null;
+  }
+  if (triedLoadDb) return db;
+  triedLoadDb = true;
+  try {
+    // 延迟加载，避免 Electron 启动阶段原生模块崩溃
+    // 注意：路径相对本文件
+    // eslint-disable-next-line global-require
+    db = require('../src/services/database');
+    console.log('[Main] Database module loaded');
+  } catch (e) {
+    console.error('[Main] Failed to load database module (fallback to memory):', e);
+    db = null;
+  }
+  return db;
+}
 
 let mainWindow;
 
+// 部分设备/驱动下GPU进程可能异常，关闭硬件加速更稳定
+app.disableHardwareAcceleration();
+
+process.on('uncaughtException', (err) => {
+  console.error('[Main] Uncaught exception:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Main] Unhandled rejection:', reason);
+});
+
 function createWindow() {
+  // 预加载文件存储到内存
+  loadKvFile();
   // 创建浏览器窗口
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -111,3 +173,39 @@ const template = [
 
 const menu = Menu.buildFromTemplate(template);
 Menu.setApplicationMenu(menu); 
+
+// IPC: 轻量KV存储
+ipcMain.handle('appData:get', async (_event, key) => {
+  try {
+    const d = getDb();
+    if (d) {
+      const row = await db.get('SELECT value FROM app_data WHERE key = ?', [key]);
+      return row && row.value ? JSON.parse(row.value) : null;
+    }
+  } catch (e) {
+    console.error('[Main] appData:get error:', e);
+  }
+  return kvMemory.has(key) ? kvMemory.get(key) : null;
+});
+
+ipcMain.handle('appData:set', async (_event, key, value) => {
+  try {
+    const payload = JSON.stringify(value ?? null);
+    const d = getDb();
+    if (d) {
+      await db.run(
+        'INSERT INTO app_data(key, value, updated_at) VALUES(?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP',
+        [key, payload]
+      );
+      return true;
+    }
+  } catch (e) {
+    console.error('[Main] appData:set error:', e);
+  }
+  // fallback memory store
+  kvMemory.set(key, value ?? null);
+  saveKvFile();
+  return true;
+});
+
+console.log('[Main] IPC handlers registered: appData:get, appData:set');

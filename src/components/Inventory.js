@@ -323,7 +323,6 @@ const Inventory = () => {
           dataSource={filteredInventory}
           rowKey="id"
           loading={loading}
-          scroll={{ x: 1200 }}
           pagination={{
             showSizeChanger: true,
             showQuickJumper: true,

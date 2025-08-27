@@ -8,6 +8,10 @@ body {
   background-color: #f0f2f5;
 }
 
+html, body {
+  overflow-x: hidden;
+}
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
@@ -19,6 +23,7 @@ code {
 
 .ant-layout {
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 .ant-layout-header {
@@ -42,6 +47,13 @@ code {
 .ant-layout-content {
   padding: 24px;
   background: #f0f2f5;
+}
+
+/* 防止内容撑破导致横向滚动 */
+/* 保持单元格内容可见，避免按钮被裁剪 */
+.ant-table td, .ant-table th {
+  word-break: break-word;
+  overflow: visible;
 }
 
 .page-header {
@@ -95,3 +107,11 @@ code {
   color: #8c8c8c;
   font-size: 14px;
 } 
+
+/* 订单表格：行可点击样式 */
+.clickable-row {
+  cursor: pointer;
+}
+.clickable-row:hover > td {
+  background: #f5faff !important;
+}

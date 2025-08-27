@@ -15,6 +15,7 @@ import {
   Tag,
   Tooltip
 } from 'antd';
+const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null };
 import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -48,32 +49,35 @@ const StockIn = () => {
     loadStockInRecords();
   }, []);
 
-  const loadStockInRecords = () => {
-    // 模拟数据
-    setStockInRecords([
-      {
-        id: 1,
-        order_number: 'PO-2024-001',
-        part_model: '轴承 6205-2RS',
-        quantity: 100,
-        unit_price: 15.50,
-        total_amount: 1550.00,
-        stock_in_date: '2024-01-15',
-        operator: '张三',
-        notes: '正常入库'
-      },
-      {
-        id: 2,
-        order_number: 'PO-2024-002',
-        part_model: '密封圈 25x32x4',
-        quantity: 200,
-        unit_price: 2.80,
-        total_amount: 560.00,
-        stock_in_date: '2024-01-14',
-        operator: '李四',
-        notes: '质量检验通过'
+  const STORAGE_KEY = 'invenmate_stock_in';
+
+  const persist = async (records) => {
+    try {
+      if (ipcRenderer) {
+        await ipcRenderer.invoke('appData:set', STORAGE_KEY, records);
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
       }
-    ]);
+    } catch {}
+  };
+
+  const loadStockInRecords = async () => {
+    try {
+      if (ipcRenderer) {
+        const data = await ipcRenderer.invoke('appData:get', STORAGE_KEY);
+        if (data) { setStockInRecords(data); return; }
+      } else {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) { setStockInRecords(JSON.parse(raw)); return; }
+      }
+    } catch {}
+    // 首次默认示例数据
+    const seed = [
+      { id: 1, order_number: 'PO-2024-001', part_model: '轴承 6205-2RS', quantity: 100, unit_price: 15.50, total_amount: 1550.00, stock_in_date: '2024-01-15', operator: '张三', notes: '正常入库' },
+      { id: 2, order_number: 'PO-2024-002', part_model: '密封圈 25x32x4', quantity: 200, unit_price: 2.80, total_amount: 560.00, stock_in_date: '2024-01-14', operator: '李四', notes: '质量检验通过' }
+    ];
+    setStockInRecords(seed);
+    persist(seed);
   };
 
   const handleAdd = () => {
@@ -96,7 +100,11 @@ const StockIn = () => {
       title: '确认删除',
       content: '确定要删除这条入库记录吗？',
       onOk: () => {
-        setStockInRecords(prev => prev.filter(item => item.id !== id));
+        setStockInRecords(prev => {
+          const next = prev.filter(item => item.id !== id);
+          persist(next);
+          return next;
+        });
         message.success('删除成功');
       }
     });
@@ -115,13 +123,11 @@ const StockIn = () => {
 
       if (editingRecord) {
         // 更新记录
-        setStockInRecords(prev => 
-          prev.map(item => 
-            item.id === editingRecord.id 
-              ? { ...item, ...stockInData, id: item.id }
-              : item
-          )
-        );
+        setStockInRecords(prev => {
+          const next = prev.map(item => item.id === editingRecord.id ? { ...item, ...stockInData, id: item.id } : item);
+          persist(next);
+          return next;
+        });
         message.success('更新成功');
       } else {
         // 新增记录
@@ -130,7 +136,11 @@ const StockIn = () => {
           id: Date.now(),
           operator: '当前用户'
         };
-        setStockInRecords(prev => [newRecord, ...prev]);
+        setStockInRecords(prev => {
+          const next = [newRecord, ...prev];
+          persist(next);
+          return next;
+        });
         message.success('入库成功');
       }
 
@@ -202,8 +212,10 @@ const StockIn = () => {
     {
       title: '操作',
       key: 'action',
+      width: 160,
+      align: 'center',
       render: (_, record) => (
-        <Space size="middle">
+        <span style={{ display: 'inline-flex', gap: 8, whiteSpace: 'nowrap' }}>
           <Button 
             type="link" 
             icon={<EditOutlined />}
@@ -219,7 +231,7 @@ const StockIn = () => {
           >
             删除
           </Button>
-        </Space>
+        </span>
       ),
     },
   ];
@@ -242,6 +254,7 @@ const StockIn = () => {
           columns={columns} 
           dataSource={stockInRecords}
           rowKey="id"
+          size="small"
           pagination={{
             showSizeChanger: true,
             showQuickJumper: true,
