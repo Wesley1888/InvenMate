@@ -1,6 +1,6 @@
 {
   "name": "invenmate",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "InvenMate",
   "description": "周转库配件耗材管理系统",
   "main": "public/electron.js",

@@ -68,7 +68,7 @@ function App() {
   const renderContent = () => {
     switch (selectedKey) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onNavigate={setSelectedKey} />;
       case 'stock-in':
         return <StockIn />;
       case 'stock-out':
@@ -82,7 +82,7 @@ function App() {
       case 'settings':
         return <Settings />;
       default:
-        return <Dashboard />;
+        return <Dashboard onNavigate={setSelectedKey} />;
     }
   };
 

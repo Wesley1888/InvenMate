@@ -11,7 +11,7 @@ import {
 
 const { Title } = Typography;
 
-const Dashboard = () => {
+const Dashboard = ({ onNavigate }) => {
   const [statistics, setStatistics] = useState({
     totalParts: 0,
     totalOrders: 0,
@@ -239,25 +239,45 @@ const Dashboard = () => {
           <Card title="快速操作">
             <Row gutter={16}>
               <Col span={6}>
-                <Card size="small" hoverable style={{ textAlign: 'center' }}>
+                <Card 
+                  size="small" 
+                  hoverable 
+                  style={{ textAlign: 'center', cursor: 'pointer' }}
+                  onClick={() => onNavigate && onNavigate('stock-in')}
+                >
                   <InboxOutlined style={{ fontSize: 24, color: '#52c41a' }} />
                   <div style={{ marginTop: 8 }}>新建入库</div>
                 </Card>
               </Col>
               <Col span={6}>
-                <Card size="small" hoverable style={{ textAlign: 'center' }}>
+                <Card 
+                  size="small" 
+                  hoverable 
+                  style={{ textAlign: 'center', cursor: 'pointer' }}
+                  onClick={() => onNavigate && onNavigate('stock-out')}
+                >
                   <ExportOutlined style={{ fontSize: 24, color: '#ff4d4f' }} />
                   <div style={{ marginTop: 8 }}>新建出库</div>
                 </Card>
               </Col>
               <Col span={6}>
-                <Card size="small" hoverable style={{ textAlign: 'center' }}>
+                <Card 
+                  size="small" 
+                  hoverable 
+                  style={{ textAlign: 'center', cursor: 'pointer' }}
+                  onClick={() => onNavigate && onNavigate('orders')}
+                >
                   <ShoppingCartOutlined style={{ fontSize: 24, color: '#1890ff' }} />
                   <div style={{ marginTop: 8 }}>新建订单</div>
                 </Card>
               </Col>
               <Col span={6}>
-                <Card size="small" hoverable style={{ textAlign: 'center' }}>
+                <Card 
+                  size="small" 
+                  hoverable 
+                  style={{ textAlign: 'center', cursor: 'pointer' }}
+                  onClick={() => onNavigate && onNavigate('inventory')}
+                >
                   <DatabaseOutlined style={{ fontSize: 24, color: '#722ed1' }} />
                   <div style={{ marginTop: 8 }}>库存查询</div>
                 </Card>
