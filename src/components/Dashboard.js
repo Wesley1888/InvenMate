@@ -37,32 +37,32 @@ const Dashboard = ({ onNavigate }) => {
       {
         key: '1',
         type: '入库',
-        part: '轴承 6205-2RS',
-        quantity: 100,
+        part: '戴尔 OptiPlex 7010',
+        quantity: 5,
         date: '2024-01-15 14:30',
         operator: '张三'
       },
       {
         key: '2',
         type: '出库',
-        part: '密封圈 25x32x4',
-        quantity: 50,
+        part: '金士顿 DataTraveler 32GB',
+        quantity: 10,
         date: '2024-01-15 13:15',
         operator: '李四'
       },
       {
         key: '3',
         type: '入库',
-        part: '螺栓 M8x20',
-        quantity: 200,
+        part: 'H3C S5120-28P-LI',
+        quantity: 2,
         date: '2024-01-15 11:45',
         operator: '王五'
       },
       {
         key: '4',
         type: '出库',
-        part: '垫片 8mm',
-        quantity: 30,
+        part: '罗技 K120 键盘',
+        quantity: 8,
         date: '2024-01-15 10:20',
         operator: '赵六'
       }
@@ -71,24 +71,24 @@ const Dashboard = ({ onNavigate }) => {
     setLowStockItems([
       {
         key: '1',
-        part: '轴承 6205-2RS',
-        currentStock: 5,
-        minStock: 20,
-        percentage: 25
+        part: '戴尔 OptiPlex 7010',
+        currentStock: 2,
+        minStock: 5,
+        percentage: 40
       },
       {
         key: '2',
-        part: '密封圈 25x32x4',
-        currentStock: 8,
-        minStock: 30,
-        percentage: 27
+        part: '金士顿 DataTraveler 32GB',
+        currentStock: 15,
+        minStock: 50,
+        percentage: 30
       },
       {
         key: '3',
-        part: '螺栓 M8x20',
-        currentStock: 12,
-        minStock: 50,
-        percentage: 24
+        part: '罗技 K120 键盘',
+        currentStock: 5,
+        minStock: 20,
+        percentage: 25
       }
     ]);
   }, []);
@@ -209,6 +209,60 @@ const Dashboard = ({ onNavigate }) => {
         </Col>
       </Row>
 
+      {/* 快速操作 */}
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Col span={24}>
+          <Card title="快速操作">
+            <Row gutter={16}>
+              <Col span={6}>
+                <Card 
+                  size="small" 
+                  hoverable 
+                  style={{ textAlign: 'center', cursor: 'pointer' }}
+                  onClick={() => onNavigate && onNavigate('stock-in', true)}
+                >
+                  <InboxOutlined style={{ fontSize: 24, color: '#52c41a' }} />
+                  <div style={{ marginTop: 8 }}>新建入库</div>
+                </Card>
+              </Col>
+              <Col span={6}>
+                <Card 
+                  size="small" 
+                  hoverable 
+                  style={{ textAlign: 'center', cursor: 'pointer' }}
+                  onClick={() => onNavigate && onNavigate('stock-out', true)}
+                >
+                  <ExportOutlined style={{ fontSize: 24, color: '#ff4d4f' }} />
+                  <div style={{ marginTop: 8 }}>新建出库</div>
+                </Card>
+              </Col>
+              <Col span={6}>
+                <Card 
+                  size="small" 
+                  hoverable 
+                  style={{ textAlign: 'center', cursor: 'pointer' }}
+                  onClick={() => onNavigate && onNavigate('orders', true)}
+                >
+                  <ShoppingCartOutlined style={{ fontSize: 24, color: '#1890ff' }} />
+                  <div style={{ marginTop: 8 }}>新建订单</div>
+                </Card>
+              </Col>
+              <Col span={6}>
+                <Card 
+                  size="small" 
+                  hoverable 
+                  style={{ textAlign: 'center', cursor: 'pointer' }}
+                  onClick={() => onNavigate && onNavigate('inventory', true)}
+                >
+                  <DatabaseOutlined style={{ fontSize: 24, color: '#722ed1' }} />
+                  <div style={{ marginTop: 8 }}>库存查询</div>
+                </Card>
+              </Col>
+            </Row>
+          </Card>
+        </Col>
+      </Row>
+
       {/* 最近活动和低库存警告 */}
       <Row gutter={16}>
         <Col span={16}>
@@ -229,60 +283,6 @@ const Dashboard = ({ onNavigate }) => {
               pagination={false}
               size="small"
             />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* 快速操作 */}
-      <Row gutter={16}>
-        <Col span={24}>
-          <Card title="快速操作">
-            <Row gutter={16}>
-              <Col span={6}>
-                <Card 
-                  size="small" 
-                  hoverable 
-                  style={{ textAlign: 'center', cursor: 'pointer' }}
-                  onClick={() => onNavigate && onNavigate('stock-in')}
-                >
-                  <InboxOutlined style={{ fontSize: 24, color: '#52c41a' }} />
-                  <div style={{ marginTop: 8 }}>新建入库</div>
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card 
-                  size="small" 
-                  hoverable 
-                  style={{ textAlign: 'center', cursor: 'pointer' }}
-                  onClick={() => onNavigate && onNavigate('stock-out')}
-                >
-                  <ExportOutlined style={{ fontSize: 24, color: '#ff4d4f' }} />
-                  <div style={{ marginTop: 8 }}>新建出库</div>
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card 
-                  size="small" 
-                  hoverable 
-                  style={{ textAlign: 'center', cursor: 'pointer' }}
-                  onClick={() => onNavigate && onNavigate('orders')}
-                >
-                  <ShoppingCartOutlined style={{ fontSize: 24, color: '#1890ff' }} />
-                  <div style={{ marginTop: 8 }}>新建订单</div>
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card 
-                  size="small" 
-                  hoverable 
-                  style={{ textAlign: 'center', cursor: 'pointer' }}
-                  onClick={() => onNavigate && onNavigate('inventory')}
-                >
-                  <DatabaseOutlined style={{ fontSize: 24, color: '#722ed1' }} />
-                  <div style={{ marginTop: 8 }}>库存查询</div>
-                </Card>
-              </Col>
-            </Row>
           </Card>
         </Col>
       </Row>

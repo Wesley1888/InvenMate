@@ -8,7 +8,8 @@ import {
   DatabaseOutlined,
   BarChartOutlined,
   SettingOutlined,
-  UserOutlined
+  UserOutlined,
+  ToolOutlined
 } from '@ant-design/icons';
 import Dashboard from './components/Dashboard';
 import StockIn from './components/StockIn';
@@ -17,12 +18,14 @@ import Orders from './components/Orders';
 import Inventory from './components/Inventory';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
+import PartModels from './components/PartModels';
 
 const { Header, Sider, Content } = Layout;
 
 function App() {
   const [selectedKey, setSelectedKey] = useState('dashboard');
   const [collapsed, setCollapsed] = useState(false);
+  const [autoOpenModal, setAutoOpenModal] = useState(false);
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
@@ -32,6 +35,11 @@ function App() {
       key: 'dashboard',
       icon: <DashboardOutlined />,
       label: '仪表盘',
+    },
+    {
+      key: 'part-models',
+      icon: <ToolOutlined />,
+      label: '配件型号',
     },
     {
       key: 'stock-in',
@@ -65,16 +73,32 @@ function App() {
     },
   ];
 
+  const handleNavigation = (key, fromQuickAction = false) => {
+    setSelectedKey(key);
+    // 只有从快捷操作导航才设置自动打开模态框
+    if (fromQuickAction && ['stock-in', 'stock-out', 'orders'].includes(key)) {
+      setAutoOpenModal(true);
+    } else {
+      setAutoOpenModal(false);
+    }
+  };
+
+  const handleModalClose = () => {
+    setAutoOpenModal(false);
+  };
+
   const renderContent = () => {
     switch (selectedKey) {
       case 'dashboard':
-        return <Dashboard onNavigate={setSelectedKey} />;
+        return <Dashboard onNavigate={handleNavigation} />;
+      case 'part-models':
+        return <PartModels />;
       case 'stock-in':
-        return <StockIn />;
+        return <StockIn autoOpenModal={autoOpenModal} onModalClose={handleModalClose} />;
       case 'stock-out':
-        return <StockOut />;
+        return <StockOut autoOpenModal={autoOpenModal} onModalClose={handleModalClose} />;
       case 'orders':
-        return <Orders />;
+        return <Orders autoOpenModal={autoOpenModal} onModalClose={handleModalClose} />;
       case 'inventory':
         return <Inventory />;
       case 'reports':
@@ -82,7 +106,7 @@ function App() {
       case 'settings':
         return <Settings />;
       default:
-        return <Dashboard onNavigate={setSelectedKey} />;
+        return <Dashboard onNavigate={handleNavigation} />;
     }
   };
 
@@ -94,6 +118,10 @@ function App() {
         collapsed={collapsed}
         style={{
           background: colorBgContainer,
+          position: 'sticky',
+          top: 0,
+          height: '100vh',
+          overflow: 'auto'
         }}
       >
         <div className="logo" style={{ 
@@ -112,10 +140,10 @@ function App() {
           mode="inline"
           selectedKeys={[selectedKey]}
           items={menuItems}
-          onClick={({ key }) => setSelectedKey(key)}
+          onClick={({ key }) => handleNavigation(key, false)}
         />
       </Sider>
-      <Layout style={{ minWidth: 0 }}>
+      <Layout style={{ minWidth: 0, height: '100vh', overflow: 'hidden' }}>
         <Header
           style={{
             padding: 0,
@@ -157,6 +185,8 @@ function App() {
             minWidth: 0,
             background: colorBgContainer,
             borderRadius: borderRadiusLG,
+            height: 'calc(100vh - 64px - 48px)',
+            overflow: 'auto'
           }}
         >
           {renderContent()}

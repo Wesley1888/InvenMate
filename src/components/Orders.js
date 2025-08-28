@@ -20,12 +20,13 @@ import {
 import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null };
+import partModelsService from '../services/partModelsService';
 
 const { Title } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
-const Orders = () => {
+const Orders = ({ autoOpenModal = false, onModalClose }) => {
   const [orders, setOrders] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
@@ -34,24 +35,32 @@ const Orders = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
+  const [partModels, setPartModels] = useState([]);
+
   // 模拟供应商数据
   const suppliers = [
-    { id: 1, name: '上海轴承有限公司', contact: '张经理', phone: '021-12345678' },
-    { id: 2, name: '北京密封件厂', contact: '李经理', phone: '010-87654321' },
-    { id: 3, name: '广州紧固件公司', contact: '王经理', phone: '020-11223344' },
-  ];
-
-  // 模拟配件数据
-  const partModels = [
-    { id: 1, model_code: 'BEAR-6205', model_name: '轴承 6205-2RS', specification: '25x52x15mm', unit: '个' },
-    { id: 2, model_code: 'SEAL-25x32', model_name: '密封圈 25x32x4', specification: '25x32x4mm', unit: '个' },
-    { id: 3, model_code: 'BOLT-M8x20', model_name: '螺栓 M8x20', specification: 'M8x20mm', unit: '个' },
-    { id: 4, model_code: 'WASHER-8', model_name: '垫片 8mm', specification: '8mm', unit: '个' },
+    { id: 1, name: '戴尔官方授权店', contact: '张经理', phone: '021-12345678' },
+    { id: 2, name: 'H3C网络设备专卖', contact: '李经理', phone: '010-87654321' },
+    { id: 3, name: '金士顿存储设备店', contact: '王经理', phone: '020-11223344' },
   ];
 
   useEffect(() => {
     loadOrders();
+    loadPartModels();
+    
+    // 监听配件型号数据变化
+    const unsubscribe = partModelsService.addListener((models) => {
+      setPartModels(models || []);
+    });
+
+    return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (autoOpenModal) {
+      handleAdd();
+    }
+  }, [autoOpenModal]);
 
   const STORAGE_KEY = 'invenmate_orders';
 
@@ -76,11 +85,20 @@ const Orders = () => {
       }
     } catch {}
     const seed = [
-      { id: 1, order_number: 'PO-2024-001', order_date: '2024-01-10', supplier: '上海轴承有限公司', total_amount: 1550.00, status: 'completed', notes: '正常采购', items: [{ part_model: '轴承 6205-2RS', quantity: 100, unit_price: 15.50, total_price: 1550.00 }] },
-      { id: 2, order_number: 'PO-2024-002', order_date: '2024-01-12', supplier: '北京密封件厂', total_amount: 560.00, status: 'pending', notes: '等待发货', items: [{ part_model: '密封圈 25x32x4', quantity: 200, unit_price: 2.80, total_price: 560.00 }] }
+      { id: 1, order_number: 'PO-2024-001', order_date: '2024-01-10', supplier: '戴尔官方授权店', total_amount: 17500.00, status: 'completed', notes: '办公电脑采购', items: [{ part_model: '戴尔 OptiPlex 7010', quantity: 5, unit_price: 3500.00, total_price: 17500.00 }] },
+      { id: 2, order_number: 'PO-2024-002', order_date: '2024-01-12', supplier: 'H3C网络设备专卖', total_amount: 5600.00, status: 'pending', notes: '网络设备采购', items: [{ part_model: 'H3C S5120-28P-LI', quantity: 2, unit_price: 2800.00, total_price: 5600.00 }] }
     ];
     setOrders(seed);
     persist(seed);
+  };
+
+  const loadPartModels = async () => {
+    try {
+      const models = await partModelsService.getAll();
+      setPartModels(models);
+    } catch (error) {
+      console.error('加载配件型号失败:', error);
+    }
   };
 
   const handleAdd = () => {
@@ -144,6 +162,7 @@ const Orders = () => {
 
       setIsModalVisible(false);
       form.resetFields();
+      onModalClose && onModalClose();
     } catch (error) {
       console.error('表单验证失败:', error);
     } finally {
@@ -289,7 +308,10 @@ const Orders = () => {
         title={editingOrder ? '编辑订单' : '新建订单'}
         open={isModalVisible}
         onOk={handleSubmit}
-        onCancel={() => setIsModalVisible(false)}
+                 onCancel={() => {
+           setIsModalVisible(false);
+           onModalClose && onModalClose();
+         }}
         confirmLoading={loading}
         width={600}
       >

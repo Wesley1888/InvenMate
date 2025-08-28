@@ -16,6 +16,8 @@ import {
   Statistic
 } from 'antd';
 import { SearchOutlined, ReloadOutlined, WarningOutlined } from '@ant-design/icons';
+const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null };
+import partModelsService from '../services/partModelsService';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -27,66 +29,7 @@ const Inventory = () => {
   const [searchText, setSearchText] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [loading, setLoading] = useState(false);
-
-  // 模拟库存数据
-  const inventoryData = [
-    {
-      id: 1,
-      model_code: 'BEAR-6205',
-      model_name: '轴承 6205-2RS',
-      specification: '25x52x15mm',
-      category: '轴承',
-      unit: '个',
-      current_quantity: 85,
-      min_quantity: 20,
-      max_quantity: 200,
-      average_cost: 15.50,
-      total_value: 1317.50,
-      last_updated: '2024-01-15 14:30'
-    },
-    {
-      id: 2,
-      model_code: 'SEAL-25x32',
-      model_name: '密封圈 25x32x4',
-      specification: '25x32x4mm',
-      category: '密封件',
-      unit: '个',
-      current_quantity: 142,
-      min_quantity: 30,
-      max_quantity: 300,
-      average_cost: 2.80,
-      total_value: 397.60,
-      last_updated: '2024-01-15 13:15'
-    },
-    {
-      id: 3,
-      model_code: 'BOLT-M8x20',
-      model_name: '螺栓 M8x20',
-      specification: 'M8x20mm',
-      category: '紧固件',
-      unit: '个',
-      current_quantity: 188,
-      min_quantity: 50,
-      max_quantity: 500,
-      average_cost: 0.85,
-      total_value: 159.80,
-      last_updated: '2024-01-15 11:45'
-    },
-    {
-      id: 4,
-      model_code: 'WASHER-8',
-      model_name: '垫片 8mm',
-      specification: '8mm',
-      category: '紧固件',
-      unit: '个',
-      current_quantity: 270,
-      min_quantity: 100,
-      max_quantity: 1000,
-      average_cost: 0.15,
-      total_value: 40.50,
-      last_updated: '2024-01-15 10:20'
-    }
-  ];
+  const [categories, setCategories] = useState([]);
 
   useEffect(() => {
     loadInventory();
@@ -96,28 +39,85 @@ const Inventory = () => {
     filterInventory();
   }, [inventory, searchText, categoryFilter]);
 
-  const loadInventory = () => {
+  const loadInventory = async () => {
     setLoading(true);
-    // 模拟API调用
-    setTimeout(() => {
-      setInventory(inventoryData);
+    try {
+      // 读取入库与出库
+      const [stockIns, stockOuts, partModels] = await Promise.all([
+        ipcRenderer ? ipcRenderer.invoke('appData:get', 'invenmate_stock_in') : Promise.resolve([]),
+        ipcRenderer ? ipcRenderer.invoke('appData:get', 'invenmate_stock_out') : Promise.resolve([]),
+        partModelsService.getAll()
+      ]);
+
+      const modelIndex = new Map();
+      partModels.forEach(m => {
+        modelIndex.set(m.model_name, m);
+      });
+
+      // 聚合入库
+      const agg = new Map();
+      (stockIns || []).forEach(r => {
+        const key = r.part_model;
+        const prev = agg.get(key) || { inQty: 0, inAmount: 0, outQty: 0, lastDate: r.stock_in_date };
+        prev.inQty += Number(r.quantity) || 0;
+        prev.inAmount += (Number(r.total_amount) || (Number(r.unit_price) || 0) * (Number(r.quantity) || 0));
+        if (!prev.lastDate || r.stock_in_date > prev.lastDate) prev.lastDate = r.stock_in_date;
+        agg.set(key, prev);
+      });
+
+      // 聚合出库
+      (stockOuts || []).forEach(r => {
+        const key = r.part_model;
+        const prev = agg.get(key) || { inQty: 0, inAmount: 0, outQty: 0, lastDate: r.stock_out_date };
+        prev.outQty += Number(r.quantity) || 0;
+        if (!prev.lastDate || r.stock_out_date > prev.lastDate) prev.lastDate = r.stock_out_date;
+        agg.set(key, prev);
+      });
+
+      // 生成库存项
+      const rows = Array.from(agg.entries()).map(([modelName, v], idx) => {
+        const model = modelIndex.get(modelName) || {};
+        const current = Math.max(0, (v.inQty || 0) - (v.outQty || 0));
+        const avgCost = v.inQty > 0 ? (v.inAmount / v.inQty) : 0;
+        return {
+          id: idx + 1,
+          model_code: model.model_code || '',
+          model_name: modelName,
+          specification: model.specification || '',
+          category: model.category || '其他',
+          unit: model.unit || '个',
+          current_quantity: current,
+          min_quantity: 0,
+          average_cost: avgCost,
+          total_value: current * avgCost,
+          last_updated: v.lastDate || ''
+        };
+      });
+
+      // 分类集合
+      const catSet = new Set(rows.map(r => r.category).filter(Boolean));
+      setCategories(['all', ...Array.from(catSet)]);
+
+      setInventory(rows);
+    } catch (e) {
+      console.error('加载库存失败:', e);
+      message.error('加载库存失败');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const filterInventory = () => {
     let filtered = [...inventory];
 
-    // 按搜索文本过滤
     if (searchText) {
       filtered = filtered.filter(item => 
-        item.model_code.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.model_name.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.specification.toLowerCase().includes(searchText.toLowerCase())
+        (item.model_code || '').toLowerCase().includes(searchText.toLowerCase()) ||
+        (item.model_name || '').toLowerCase().includes(searchText.toLowerCase()) ||
+        (item.specification || '').toLowerCase().includes(searchText.toLowerCase())
       );
     }
 
-    // 按类别过滤
     if (categoryFilter !== 'all') {
       filtered = filtered.filter(item => item.category === categoryFilter);
     }
@@ -126,7 +126,8 @@ const Inventory = () => {
   };
 
   const getStockLevel = (current, min) => {
-    const percentage = (current / min) * 100;
+    const base = min && min > 0 ? min : 1;
+    const percentage = (current / base) * 100;
     if (percentage < 50) return { status: 'exception', text: '严重不足' };
     if (percentage < 100) return { status: 'warning', text: '库存不足' };
     if (percentage > 200) return { status: 'success', text: '库存充足' };
@@ -182,17 +183,18 @@ const Inventory = () => {
       key: 'stock_level',
       width: 150,
       render: (_, record) => {
-        const percentage = (record.current_quantity / record.min_quantity) * 100;
-        const level = getStockLevel(record.current_quantity, record.min_quantity);
+        const base = record.min_quantity && record.min_quantity > 0 ? record.min_quantity : 1;
+        const percentage = (record.current_quantity / base) * 100;
+        const level = getStockLevel(record.current_quantity, base);
         return (
           <div>
             <Progress 
               percent={Math.min(percentage, 200)} 
               size="small" 
               status={level.status}
-              format={() => `${record.current_quantity}/${record.min_quantity}`}
+              format={() => `${record.current_quantity}/${base}`}
             />
-            {getStockLevelTag(record.current_quantity, record.min_quantity)}
+            {getStockLevelTag(record.current_quantity, base)}
           </div>
         );
       }
@@ -202,14 +204,14 @@ const Inventory = () => {
       dataIndex: 'average_cost',
       key: 'average_cost',
       width: 100,
-      render: (cost) => `¥${cost.toFixed(2)}`
+      render: (cost) => `¥${(Number(cost) || 0).toFixed(2)}`
     },
     {
       title: '库存价值',
       dataIndex: 'total_value',
       key: 'total_value',
       width: 120,
-      render: (value) => `¥${value.toFixed(2)}`
+      render: (value) => `¥${(Number(value) || 0).toFixed(2)}`
     },
     {
       title: '最后更新',
@@ -219,15 +221,13 @@ const Inventory = () => {
     }
   ];
 
-  const categories = ['轴承', '密封件', '紧固件', '电气件', '液压件'];
-
   const getStatistics = () => {
     const totalItems = inventory.length;
     const lowStockItems = inventory.filter(item => 
-      item.current_quantity < item.min_quantity
+      item.min_quantity > 0 && item.current_quantity < item.min_quantity
     ).length;
-    const totalValue = inventory.reduce((sum, item) => sum + item.total_value, 0);
-    const totalQuantity = inventory.reduce((sum, item) => sum + item.current_quantity, 0);
+    const totalValue = inventory.reduce((sum, item) => sum + (Number(item.total_value) || 0), 0);
+    const totalQuantity = inventory.reduce((sum, item) => sum + (Number(item.current_quantity) || 0), 0);
 
     return { totalItems, lowStockItems, totalValue, totalQuantity };
   };
@@ -308,9 +308,8 @@ const Inventory = () => {
             onChange={setCategoryFilter}
             allowClear
           >
-            <Option value="all">全部类别</Option>
             {categories.map(category => (
-              <Option key={category} value={category}>{category}</Option>
+              <Option key={category} value={category}>{category === 'all' ? '全部类别' : category}</Option>
             ))}
           </Select>
         </Space>
@@ -329,7 +328,7 @@ const Inventory = () => {
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条/共 ${total} 条`
           }}
           rowClassName={(record) => {
-            if (record.current_quantity < record.min_quantity) {
+            if (record.min_quantity > 0 && record.current_quantity < record.min_quantity) {
               return 'low-stock-row';
             }
             return '';

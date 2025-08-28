@@ -19,12 +19,13 @@ import {
 import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null };
+import partModelsService from '../services/partModelsService';
 
 const { Title } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
-const StockOut = () => {
+const StockOut = ({ autoOpenModal = false, onModalClose }) => {
   const [stockOutRecords, setStockOutRecords] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
@@ -32,25 +33,33 @@ const StockOut = () => {
   const [loading, setLoading] = useState(false);
   const [currentStock, setCurrentStock] = useState(0);
 
-  // 模拟配件数据
-  const partModels = [
-    { id: 1, model_code: 'BEAR-6205', model_name: '轴承 6205-2RS', specification: '25x52x15mm', unit: '个', current_stock: 85 },
-    { id: 2, model_code: 'SEAL-25x32', model_name: '密封圈 25x32x4', specification: '25x32x4mm', unit: '个', current_stock: 142 },
-    { id: 3, model_code: 'BOLT-M8x20', model_name: '螺栓 M8x20', specification: 'M8x20mm', unit: '个', current_stock: 188 },
-    { id: 4, model_code: 'WASHER-8', model_name: '垫片 8mm', specification: '8mm', unit: '个', current_stock: 270 },
-  ];
+  const [partModels, setPartModels] = useState([]);
 
   // 模拟部门数据
   const departments = [
-    { id: 1, name: '生产部', code: 'PROD' },
-    { id: 2, name: '维修部', code: 'MAINT' },
-    { id: 3, name: '质检部', code: 'QC' },
-    { id: 4, name: '研发部', code: 'R&D' },
+    { id: 1, name: 'IT部', code: 'IT' },
+    { id: 2, name: '行政部', code: 'ADMIN' },
+    { id: 3, name: '财务部', code: 'FINANCE' },
+    { id: 4, name: '人事部', code: 'HR' },
   ];
 
   useEffect(() => {
     loadStockOutRecords();
+    loadPartModels();
+    
+    // 监听配件型号数据变化
+    const unsubscribe = partModelsService.addListener((models) => {
+      setPartModels(models || []);
+    });
+
+    return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (autoOpenModal) {
+      handleAdd();
+    }
+  }, [autoOpenModal]);
 
   const STORAGE_KEY = 'invenmate_stock_out';
 
@@ -75,11 +84,20 @@ const StockOut = () => {
       }
     } catch {}
     const seed = [
-      { id: 1, part_model: '轴承 6205-2RS', quantity: 15, unit_price: 15.50, total_amount: 232.50, recipient: '张三', department: '生产部', stock_out_date: '2024-01-15', operator: '李四', notes: '生产线维修使用' },
-      { id: 2, part_model: '密封圈 25x32x4', quantity: 8, unit_price: 2.80, total_amount: 22.40, recipient: '王五', department: '维修部', stock_out_date: '2024-01-14', operator: '赵六', notes: '设备维护' }
+      { id: 1, part_model: '戴尔 OptiPlex 7010', quantity: 2, unit_price: 3500.00, total_amount: 7000.00, recipient: '张三', department: 'IT部', stock_out_date: '2024-01-15', operator: '李四', notes: '新员工办公电脑配发' },
+      { id: 2, part_model: '金士顿 DataTraveler 32GB', quantity: 10, unit_price: 45.00, total_amount: 450.00, recipient: '王五', department: '行政部', stock_out_date: '2024-01-14', operator: '赵六', notes: 'U盘办公用品配发' }
     ];
     setStockOutRecords(seed);
     persist(seed);
+  };
+
+  const loadPartModels = async () => {
+    try {
+      const models = await partModelsService.getAll();
+      setPartModels(models);
+    } catch (error) {
+      console.error('加载配件型号失败:', error);
+    }
   };
 
   const handleAdd = () => {
@@ -151,6 +169,7 @@ const StockOut = () => {
 
       setIsModalVisible(false);
       form.resetFields();
+      onModalClose && onModalClose();
     } catch (error) {
       console.error('表单验证失败:', error);
     } finally {
@@ -277,7 +296,10 @@ const StockOut = () => {
         title={editingRecord ? '编辑出库记录' : '新建出库'}
         open={isModalVisible}
         onOk={handleSubmit}
-        onCancel={() => setIsModalVisible(false)}
+                 onCancel={() => {
+           setIsModalVisible(false);
+           onModalClose && onModalClose();
+         }}
         confirmLoading={loading}
         width={600}
       >

@@ -1,53 +1,42 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 // 检查是否为开发环境
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 let db = null;
 let triedLoadDb = false;
-const kvMemory = new Map();
 const userDataDir = app.getPath('userData');
-const kvFile = path.join(userDataDir, 'app_data.json');
 
-function loadKvFile() {
+// 文件日志 - 输出到 userData/main.log
+const logFile = path.join(userDataDir, 'main.log');
+function writeLog(level, ...args) {
   try {
-    if (fs.existsSync(kvFile)) {
-      const raw = fs.readFileSync(kvFile, 'utf8');
-      const obj = JSON.parse(raw || '{}');
-      kvMemory.clear();
-      Object.entries(obj).forEach(([k, v]) => kvMemory.set(k, v));
-    }
-  } catch (e) {
-    console.error('[Main] Failed to load KV file:', e);
-  }
-}
-
-function saveKvFile() {
-  try {
-    const obj = {};
-    kvMemory.forEach((v, k) => { obj[k] = v; });
+    const ts = new Date().toISOString();
+    const text = args.map(a => {
+      if (a instanceof Error) return `${a.stack || a.message}`;
+      if (typeof a === 'string') return a;
+      try { return JSON.stringify(a); } catch { return String(a); }
+    }).join(' ');
     fs.mkdirSync(userDataDir, { recursive: true });
-    fs.writeFileSync(kvFile, JSON.stringify(obj, null, 2), 'utf8');
-  } catch (e) {
-    console.error('[Main] Failed to save KV file:', e);
-  }
+    fs.appendFileSync(logFile, `[${ts}] [${level}] ${text}\n`, 'utf8');
+  } catch (_) {}
 }
+const origLog = console.log;
+const origErr = console.error;
+console.log = (...args) => { origLog(...args); writeLog('INFO', ...args); };
+console.error = (...args) => { origErr(...args); writeLog('ERROR', ...args); };
+console.log('[Main] Logger initialized at', logFile);
 
 function getDb() {
-  if (isDev && process.env.USE_SQLITE !== '1') {
-    // 在开发模式下默认不加载原生模块，避免 ABI 不匹配导致崩溃
-    return null;
-  }
   if (triedLoadDb) return db;
   triedLoadDb = true;
   try {
-    // 延迟加载，避免 Electron 启动阶段原生模块崩溃
-    // 注意：路径相对本文件
-    // eslint-disable-next-line global-require
-    db = require('../src/services/database');
-    console.log('[Main] Database module loaded');
+    const DatabaseService = require('./database');
+    db = new DatabaseService(userDataDir);
+    console.log('[Main] ✅ SQLite database module loaded successfully');
   } catch (e) {
-    console.error('[Main] Failed to load database module (fallback to memory):', e);
+    console.error('[Main] ❌ Failed to load database module:', e);
     db = null;
   }
   return db;
@@ -66,8 +55,6 @@ process.on('unhandledRejection', (reason) => {
 });
 
 function createWindow() {
-  // 预加载文件存储到内存
-  loadKvFile();
   // 创建浏览器窗口
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -174,18 +161,20 @@ const template = [
 const menu = Menu.buildFromTemplate(template);
 Menu.setApplicationMenu(menu); 
 
-// IPC: 轻量KV存储
+// IPC: 数据库存储
 ipcMain.handle('appData:get', async (_event, key) => {
   try {
     const d = getDb();
     if (d) {
-      const row = await db.get('SELECT value FROM app_data WHERE key = ?', [key]);
-      return row && row.value ? JSON.parse(row.value) : null;
+      const row = d.get('SELECT value FROM app_data WHERE key = ?', [key]);
+      const parsed = row && row.value ? JSON.parse(row.value) : null;
+      console.log(`[Main] appData:get ${key} -> ${parsed ? (Array.isArray(parsed) ? `Array(${parsed.length})` : typeof parsed) : 'null'}`);
+      return parsed;
     }
   } catch (e) {
-    console.error('[Main] appData:get error:', e);
+    console.error('[Main] appData:get error:', key, e);
   }
-  return kvMemory.has(key) ? kvMemory.get(key) : null;
+  return null;
 });
 
 ipcMain.handle('appData:set', async (_event, key, value) => {
@@ -193,19 +182,92 @@ ipcMain.handle('appData:set', async (_event, key, value) => {
     const payload = JSON.stringify(value ?? null);
     const d = getDb();
     if (d) {
-      await db.run(
+      d.run(
         'INSERT INTO app_data(key, value, updated_at) VALUES(?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP',
         [key, payload]
       );
+      console.log(`[Main] appData:set ${key} <- ${value ? (Array.isArray(value) ? `Array(${value.length})` : typeof value) : 'null'}`);
       return true;
     }
   } catch (e) {
-    console.error('[Main] appData:set error:', e);
+    console.error('[Main] appData:set error:', key, e);
   }
-  // fallback memory store
-  kvMemory.set(key, value ?? null);
-  saveKvFile();
-  return true;
+  return false;
+});
+
+// 数据导出（返回内存对象）
+ipcMain.handle('appData:export', async () => {
+  try {
+    const d = getDb();
+    if (!d) return {};
+    const rows = d.query('SELECT key, value FROM app_data');
+    const out = {};
+    rows.forEach(r => { try { out[r.key] = JSON.parse(r.value); } catch { out[r.key] = r.value; } });
+    return out;
+  } catch (e) {
+    console.error('appData:export error', e);
+    return {};
+  }
+});
+
+// 导出到文件（保存对话框）
+ipcMain.handle('appData:exportToFile', async () => {
+  try {
+    const d = getDb();
+    if (!d) return { ok: false };
+    const rows = d.query('SELECT key, value FROM app_data');
+    const out = {};
+    rows.forEach(r => { try { out[r.key] = JSON.parse(r.value); } catch { out[r.key] = r.value; } });
+    const res = await dialog.showSaveDialog({
+      title: '导出数据为 JSON',
+      defaultPath: path.join(userDataDir, 'invenmate-export.json'),
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (res.canceled || !res.filePath) return { ok: false };
+    fs.writeFileSync(res.filePath, JSON.stringify(out, null, 2), 'utf8');
+    console.log('[Main] Exported app_data to', res.filePath);
+    return { ok: true, filePath: res.filePath };
+  } catch (e) {
+    console.error('appData:exportToFile error', e);
+    return { ok: false, error: e.message };
+  }
+});
+
+// 从文件导入（打开对话框）
+ipcMain.handle('appData:importFromFile', async () => {
+  try {
+    const d = getDb();
+    if (!d) return { ok: false };
+    const res = await dialog.showOpenDialog({
+      title: '选择要导入的 JSON 数据文件',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['openFile']
+    });
+    if (res.canceled || !res.filePaths || !res.filePaths[0]) return { ok: false };
+    const file = res.filePaths[0];
+    const raw = fs.readFileSync(file, 'utf8');
+    const data = JSON.parse(raw || '{}');
+    const stmt = d.db.prepare('INSERT INTO app_data(key, value, updated_at) VALUES(?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP');
+    const tx = d.db.transaction((entries) => {
+      entries.forEach(([k, v]) => stmt.run(k, JSON.stringify(v ?? null)));
+    });
+    tx(Object.entries(data));
+    console.log('[Main] Imported app_data from', file);
+    return { ok: true, filePath: file, keys: Object.keys(data).length };
+  } catch (e) {
+    console.error('appData:importFromFile error', e);
+    return { ok: false, error: e.message };
+  }
+});
+
+// 日志：打开目录
+ipcMain.handle('logs:openDir', async () => {
+  try { await shell.openPath(userDataDir); return true; } catch { return false; }
+});
+
+// 日志：清空
+ipcMain.handle('logs:clear', async () => {
+  try { fs.writeFileSync(logFile, '', 'utf8'); return true; } catch { return false; }
 });
 
 console.log('[Main] IPC handlers registered: appData:get, appData:set');

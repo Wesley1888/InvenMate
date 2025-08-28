@@ -18,36 +18,45 @@ import {
 const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null };
 import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import partModelsService from '../services/partModelsService';
 
 const { Title } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
-const StockIn = () => {
+const StockIn = ({ autoOpenModal = false, onModalClose }) => {
   const [stockInRecords, setStockInRecords] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
-  // 模拟配件数据
-  const partModels = [
-    { id: 1, model_code: 'BEAR-6205', model_name: '轴承 6205-2RS', specification: '25x52x15mm', unit: '个' },
-    { id: 2, model_code: 'SEAL-25x32', model_name: '密封圈 25x32x4', specification: '25x32x4mm', unit: '个' },
-    { id: 3, model_code: 'BOLT-M8x20', model_name: '螺栓 M8x20', specification: 'M8x20mm', unit: '个' },
-    { id: 4, model_code: 'WASHER-8', model_name: '垫片 8mm', specification: '8mm', unit: '个' },
-  ];
+  const [partModels, setPartModels] = useState([]);
 
   // 模拟订单数据
   const orders = [
-    { id: 1, order_number: 'PO-2024-001', supplier: '上海轴承有限公司' },
-    { id: 2, order_number: 'PO-2024-002', supplier: '北京密封件厂' },
-    { id: 3, order_number: 'PO-2024-003', supplier: '广州紧固件公司' },
+    { id: 1, order_number: 'PO-2024-001', supplier: '戴尔官方授权店' },
+    { id: 2, order_number: 'PO-2024-002', supplier: 'H3C网络设备专卖' },
+    { id: 3, order_number: 'PO-2024-003', supplier: '金士顿存储设备店' },
   ];
 
   useEffect(() => {
     loadStockInRecords();
+    loadPartModels();
+    
+    // 监听配件型号数据变化
+    const unsubscribe = partModelsService.addListener((models) => {
+      setPartModels(models || []);
+    });
+
+    return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (autoOpenModal) {
+      handleAdd();
+    }
+  }, [autoOpenModal]);
 
   const STORAGE_KEY = 'invenmate_stock_in';
 
@@ -73,11 +82,20 @@ const StockIn = () => {
     } catch {}
     // 首次默认示例数据
     const seed = [
-      { id: 1, order_number: 'PO-2024-001', part_model: '轴承 6205-2RS', quantity: 100, unit_price: 15.50, total_amount: 1550.00, stock_in_date: '2024-01-15', operator: '张三', notes: '正常入库' },
-      { id: 2, order_number: 'PO-2024-002', part_model: '密封圈 25x32x4', quantity: 200, unit_price: 2.80, total_amount: 560.00, stock_in_date: '2024-01-14', operator: '李四', notes: '质量检验通过' }
+      { id: 1, order_number: 'PO-2024-001', part_model: '戴尔 OptiPlex 7010', quantity: 5, unit_price: 3500.00, total_amount: 17500.00, stock_in_date: '2024-01-15', operator: '张三', notes: '办公电脑采购入库' },
+      { id: 2, order_number: 'PO-2024-002', part_model: 'H3C S5120-28P-LI', quantity: 2, unit_price: 2800.00, total_amount: 5600.00, stock_in_date: '2024-01-14', operator: '李四', notes: '网络设备入库' }
     ];
     setStockInRecords(seed);
     persist(seed);
+  };
+
+  const loadPartModels = async () => {
+    try {
+      const models = await partModelsService.getAll();
+      setPartModels(models);
+    } catch (error) {
+      console.error('加载配件型号失败:', error);
+    }
   };
 
   const handleAdd = () => {
@@ -146,6 +164,7 @@ const StockIn = () => {
 
       setIsModalVisible(false);
       form.resetFields();
+      onModalClose && onModalClose();
     } catch (error) {
       console.error('表单验证失败:', error);
     } finally {
@@ -267,7 +286,10 @@ const StockIn = () => {
         title={editingRecord ? '编辑入库记录' : '新建入库'}
         open={isModalVisible}
         onOk={handleSubmit}
-        onCancel={() => setIsModalVisible(false)}
+                 onCancel={() => {
+           setIsModalVisible(false);
+           onModalClose && onModalClose();
+         }}
         confirmLoading={loading}
         width={600}
       >
