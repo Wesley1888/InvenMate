@@ -400,8 +400,22 @@ const Orders = ({ autoOpenModal = false, onModalClose }) => {
             <Card size="small" style={{ marginTop: 16 }}>
               <Form layout="inline" form={itemForm}>
                 <Form.Item name="part_model" rules={[{ required: true, message: '请选择配件型号' }]}>
-                  <Select placeholder="配件型号" style={{ width: 260 }} allowClear>
-                    {partModels.map(pm => (<Option key={pm.model_code} value={pm.model_name}>{pm.model_code} - {pm.model_name}</Option>))}
+                  <Select 
+                    placeholder="配件型号" 
+                    style={{ width: 260 }} 
+                    allowClear
+                    showSearch
+                    filterOption={(input, option) => {
+                      const label = String(option?.children || '');
+                      return label.toLowerCase().includes(input.toLowerCase());
+                    }}
+                    optionFilterProp="children"
+                  >
+                    {partModels.map(pm => (
+                      <Option key={pm.model_code} value={pm.model_name}>
+                        {pm.model_code} - {pm.model_name}
+                      </Option>
+                    ))}
                   </Select>
                 </Form.Item>
                 <Form.Item name="quantity" rules={[{ required: true, message: '数量' }]}>

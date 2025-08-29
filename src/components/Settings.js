@@ -25,7 +25,7 @@ const Settings = () => {
         <Card title="系统信息" size="small">
           <Descriptions column={2}>
             <Descriptions.Item label="应用名称">InvenMate</Descriptions.Item>
-            <Descriptions.Item label="版本">1.0.13</Descriptions.Item>
+            <Descriptions.Item label="版本">1.0.15</Descriptions.Item>
             <Descriptions.Item label="描述">周转库配件耗材管理系统</Descriptions.Item>
             <Descriptions.Item label="作者">InvenMate</Descriptions.Item>
           </Descriptions>

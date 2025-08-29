@@ -233,8 +233,22 @@ const StockOut = ({ autoOpenModal = false, onModalClose }) => {
       <Card style={{ marginBottom: 12 }}>
         <Form layout="inline" form={filterForm}>
           <Form.Item name="partModel">
-            <Select placeholder="配件型号" allowClear style={{ width: 240 }}>
-              {partModels.map(part => (<Option key={part.model_code} value={part.model_name}>{part.model_code} - {part.model_name}</Option>))}
+            <Select 
+              placeholder="配件型号" 
+              allowClear 
+              style={{ width: 240 }}
+              showSearch
+              filterOption={(input, option) => {
+                const label = String(option?.children || '');
+                return label.toLowerCase().includes(input.toLowerCase());
+              }}
+              optionFilterProp="children"
+            >
+              {partModels.map(part => (
+                <Option key={part.model_code} value={part.model_name}>
+                  {part.model_code} - {part.model_name}
+                </Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item name="department">
@@ -286,8 +300,22 @@ const StockOut = ({ autoOpenModal = false, onModalClose }) => {
       >
         <Form form={form} layout="vertical" initialValues={{ stock_out_date: dayjs() }}>
           <Form.Item name="part_model" label="配件型号" rules={[{ required: true, message: '请选择配件型号' }]}>
-            <Select placeholder="请选择配件型号" allowClear onChange={handlePartModelChange}>
-              {partModels.map(part => (<Option key={part.model_code} value={part.model_name}>{part.model_code} - {part.model_name} {part.current_stock ? `(库存: ${part.current_stock})` : ''}</Option>))}
+            <Select 
+              placeholder="请选择配件型号" 
+              allowClear 
+              onChange={handlePartModelChange}
+              showSearch
+              filterOption={(input, option) => {
+                const label = String(option?.children || '');
+                return label.toLowerCase().includes(input.toLowerCase());
+              }}
+              optionFilterProp="children"
+            >
+              {partModels.map(part => (
+                <Option key={part.model_code} value={part.model_name}>
+                  {part.model_code} - {part.model_name} {part.current_stock ? `(库存: ${part.current_stock})` : ''}
+                </Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item name="quantity" label="出库数量" rules={[{ required: true, message: '请输入出库数量' }, { type: 'number', min: 1, message: '数量必须大于0' }]}>
