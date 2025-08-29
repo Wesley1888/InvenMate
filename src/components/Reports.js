@@ -25,7 +25,7 @@ import dayjs from 'dayjs';
 const { Title } = Typography;
 const { Option } = Select;
 const { RangePicker } = DatePicker;
-const { TabPane } = Tabs;
+
 
 const Reports = () => {
   const [dateRange, setDateRange] = useState([dayjs().subtract(30, 'days'), dayjs()]);
@@ -41,21 +41,21 @@ const Reports = () => {
       totalOrders: 15
     },
     topItems: [
-      { name: '轴承 6205-2RS', inQty: 200, outQty: 150, value: 3875.00 },
-      { name: '密封圈 25x32x4', inQty: 300, outQty: 180, value: 2240.00 },
-      { name: '螺栓 M8x20', inQty: 500, outQty: 320, value: 1530.00 },
-      { name: '垫片 8mm', inQty: 800, outQty: 450, value: 525.00 }
+      { key: 'bearing', name: '轴承 6205-2RS', inQty: 200, outQty: 150, value: 3875.00 },
+      { key: 'seal', name: '密封圈 25x32x4', inQty: 300, outQty: 180, value: 2240.00 },
+      { key: 'bolt', name: '螺栓 M8x20', inQty: 500, outQty: 320, value: 1530.00 },
+      { key: 'washer', name: '垫片 8mm', inQty: 800, outQty: 450, value: 525.00 }
     ],
     departmentStats: [
-      { department: '生产部', quantity: 450, value: 6750.00 },
-      { department: '维修部', quantity: 280, value: 4200.00 },
-      { department: '质检部', quantity: 120, value: 1800.00 },
-      { department: '研发部', quantity: 40, value: 600.00 }
+      { key: 'production', department: '生产部', quantity: 450, value: 6750.00 },
+      { key: 'maintenance', department: '维修部', quantity: 280, value: 4200.00 },
+      { key: 'quality', department: '质检部', quantity: 120, value: 1800.00 },
+      { key: 'rd', department: '研发部', quantity: 40, value: 600.00 }
     ],
     monthlyTrend: [
-      { month: '2024-01', inQty: 1250, outQty: 890, value: 15680.50 },
-      { month: '2023-12', inQty: 1100, outQty: 780, value: 14200.00 },
-      { month: '2023-11', inQty: 980, outQty: 720, value: 12800.00 }
+      { key: '2024-01', month: '2024-01', inQty: 1250, outQty: 890, value: 15680.50 },
+      { key: '2023-12', month: '2023-12', inQty: 1100, outQty: 780, value: 14200.00 },
+      { key: '2023-11', month: '2023-11', inQty: 980, outQty: 720, value: 12800.00 }
     ]
   });
 
@@ -217,10 +217,10 @@ const Reports = () => {
   ];
 
   const summaryData = [
-    { metric: '总入库数量', value: reportData.summary.totalIn, change: 12.5, type: 'number' },
-    { metric: '总出库数量', value: reportData.summary.totalOut, change: -8.3, type: 'number' },
-    { metric: '库存总价值', value: reportData.summary.totalValue, change: 5.2, type: 'currency' },
-    { metric: '订单总数', value: reportData.summary.totalOrders, change: 15.0, type: 'number' }
+    { key: 'totalIn', metric: '总入库数量', value: reportData.summary.totalIn, change: 12.5, type: 'number' },
+    { key: 'totalOut', metric: '总出库数量', value: reportData.summary.totalOut, change: -8.3, type: 'number' },
+    { key: 'totalValue', metric: '库存总价值', value: reportData.summary.totalValue, change: 5.2, type: 'currency' },
+    { key: 'totalOrders', metric: '订单总数', value: reportData.summary.totalOrders, change: 15.0, type: 'number' }
   ];
 
   return (
@@ -298,79 +298,95 @@ const Reports = () => {
       </Row>
 
       {/* 报表内容 */}
-      <Tabs defaultActiveKey="summary">
-        <TabPane tab="统计概览" key="summary">
-          <Card
-            title="关键指标"
-            extra={
-              <Button icon={<DownloadOutlined />} onClick={() => handleExport('summary')}>
-                导出
-              </Button>
-            }
-          >
-            <Table 
-              columns={summaryColumns} 
-              dataSource={summaryData}
-              pagination={false}
-              size="small"
-            />
-          </Card>
-        </TabPane>
-
-        <TabPane tab="热门配件" key="topItems">
-          <Card
-            title="热门配件统计"
-            extra={
-              <Button icon={<DownloadOutlined />} onClick={() => handleExport('topItems')}>
-                导出
-              </Button>
-            }
-          >
-            <Table 
-              columns={topItemsColumns} 
-              dataSource={reportData.topItems}
-              pagination={false}
-              size="small"
-            />
-          </Card>
-        </TabPane>
-
-        <TabPane tab="部门统计" key="department">
-          <Card
-            title="部门领用统计"
-            extra={
-              <Button icon={<DownloadOutlined />} onClick={() => handleExport('department')}>
-                导出
-              </Button>
-            }
-          >
-            <Table 
-              columns={departmentColumns} 
-              dataSource={reportData.departmentStats}
-              pagination={false}
-              size="small"
-            />
-          </Card>
-        </TabPane>
-
-        <TabPane tab="趋势分析" key="trend">
-          <Card
-            title="月度趋势"
-            extra={
-              <Button icon={<DownloadOutlined />} onClick={() => handleExport('trend')}>
-                导出
-              </Button>
-            }
-          >
-            <Table 
-              columns={trendColumns} 
-              dataSource={reportData.monthlyTrend}
-              pagination={false}
-              size="small"
-            />
-          </Card>
-        </TabPane>
-      </Tabs>
+      <Tabs 
+        defaultActiveKey="summary"
+        items={[
+          {
+            key: 'summary',
+            label: '统计概览',
+            children: (
+              <Card
+                title="关键指标"
+                extra={
+                  <Button icon={<DownloadOutlined />} onClick={() => handleExport('summary')}>
+                    导出
+                  </Button>
+                }
+              >
+                <Table 
+                  columns={summaryColumns} 
+                  dataSource={summaryData}
+                  pagination={false}
+                  size="small"
+                />
+              </Card>
+            )
+          },
+          {
+            key: 'topItems',
+            label: '热门配件',
+            children: (
+              <Card
+                title="热门配件统计"
+                extra={
+                  <Button icon={<DownloadOutlined />} onClick={() => handleExport('topItems')}>
+                    导出
+                  </Button>
+                }
+              >
+                <Table 
+                  columns={topItemsColumns} 
+                  dataSource={reportData.topItems}
+                  pagination={false}
+                  size="small"
+                />
+              </Card>
+            )
+          },
+          {
+            key: 'department',
+            label: '部门统计',
+            children: (
+              <Card
+                title="部门领用统计"
+                extra={
+                  <Button icon={<DownloadOutlined />} onClick={() => handleExport('department')}>
+                    导出
+                  </Button>
+                }
+              >
+                <Table 
+                  columns={departmentColumns} 
+                  dataSource={reportData.departmentStats}
+                  pagination={false}
+                  size="small"
+                />
+              </Card>
+            )
+          },
+          {
+            key: 'trend',
+            label: '趋势分析',
+            children: (
+              <Card
+                title="月度趋势"
+                extra={
+                  <Button icon={<DownloadOutlined />} onClick={() => handleExport('trend')}>
+                    导出
+                  </Button>
+                }
+              >
+                <Table 
+                  columns={trendColumns} 
+                  dataSource={reportData.monthlyTrend}
+                  pagination={false}
+                  size="small"
+                />
+              </Card>
+            )
+          }
+        ]}
+      />
     </div>
   );
 };

@@ -340,14 +340,7 @@ const Inventory = () => {
         />
       </Card>
 
-      <style jsx>{`
-        .low-stock-row {
-          background-color: #fff2f0;
-        }
-        .low-stock-row:hover > td {
-          background-color: #ffccc7 !important;
-        }
-      `}</style>
+
     </div>
   );
 };
