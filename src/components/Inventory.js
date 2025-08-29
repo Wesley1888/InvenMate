@@ -15,7 +15,7 @@ import {
   Col,
   Statistic
 } from 'antd';
-import { SearchOutlined, ReloadOutlined, WarningOutlined } from '@ant-design/icons';
+import { SearchOutlined, ReloadOutlined, WarningOutlined, DownloadOutlined } from '@ant-design/icons';
 const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null };
 import partModelsService from '../services/partModelsService';
 
@@ -42,10 +42,10 @@ const Inventory = () => {
   const loadInventory = async () => {
     setLoading(true);
     try {
-      // 读取入库与出库
+      // 读取入库与出库（直接来自表）
       const [stockIns, stockOuts, partModels] = await Promise.all([
-        ipcRenderer ? ipcRenderer.invoke('appData:get', 'invenmate_stock_in') : Promise.resolve([]),
-        ipcRenderer ? ipcRenderer.invoke('appData:get', 'invenmate_stock_out') : Promise.resolve([]),
+        ipcRenderer ? ipcRenderer.invoke('si:list') : Promise.resolve([]),
+        ipcRenderer ? ipcRenderer.invoke('so:list') : Promise.resolve([]),
         partModelsService.getAll()
       ]);
 
@@ -54,7 +54,6 @@ const Inventory = () => {
         modelIndex.set(m.model_name, m);
       });
 
-      // 聚合入库
       const agg = new Map();
       (stockIns || []).forEach(r => {
         const key = r.part_model;
@@ -65,7 +64,6 @@ const Inventory = () => {
         agg.set(key, prev);
       });
 
-      // 聚合出库
       (stockOuts || []).forEach(r => {
         const key = r.part_model;
         const prev = agg.get(key) || { inQty: 0, inAmount: 0, outQty: 0, lastDate: r.stock_out_date };
@@ -74,7 +72,6 @@ const Inventory = () => {
         agg.set(key, prev);
       });
 
-      // 生成库存项
       const rows = Array.from(agg.entries()).map(([modelName, v], idx) => {
         const model = modelIndex.get(modelName) || {};
         const current = Math.max(0, (v.inQty || 0) - (v.outQty || 0));
@@ -87,17 +84,15 @@ const Inventory = () => {
           category: model.category || '其他',
           unit: model.unit || '个',
           current_quantity: current,
-          min_quantity: 0,
+          min_quantity: Number(model.min_threshold) || 0,
           average_cost: avgCost,
           total_value: current * avgCost,
           last_updated: v.lastDate || ''
         };
       });
 
-      // 分类集合
       const catSet = new Set(rows.map(r => r.category).filter(Boolean));
       setCategories(['all', ...Array.from(catSet)]);
-
       setInventory(rows);
     } catch (e) {
       console.error('加载库存失败:', e);
@@ -234,10 +229,22 @@ const Inventory = () => {
 
   const stats = getStatistics();
 
+  const handleExportExcel = async () => {
+    if (!ipcRenderer) return message.error('无法访问 Electron IPC');
+    const filters = {
+      keyword: searchText || '',
+      category: categoryFilter
+    };
+    const res = await ipcRenderer.invoke('export:inventoryExcel', { filters });
+    if (res?.ok) message.success(`已导出: ${res.filePath}`);
+    else message.error(res?.error || '导出失败');
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={2}>库存管理</Title>
+        <Button icon={<DownloadOutlined />} onClick={handleExportExcel}>导出 Excel</Button>
         <Button 
           icon={<ReloadOutlined />}
           onClick={loadInventory}
@@ -247,7 +254,6 @@ const Inventory = () => {
         </Button>
       </div>
 
-      {/* 统计卡片 */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={6}>
           <Card>
@@ -290,7 +296,6 @@ const Inventory = () => {
         </Col>
       </Row>
 
-      {/* 搜索和过滤 */}
       <Card style={{ marginBottom: 16 }}>
         <Space size="large">
           <Search
@@ -315,7 +320,6 @@ const Inventory = () => {
         </Space>
       </Card>
 
-      {/* 库存表格 */}
       <Card>
         <Table 
           columns={columns} 

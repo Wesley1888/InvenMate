@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Statistic, Table, Progress, Typography } from 'antd';
+import { Row, Col, Card, Statistic, Table, Progress, Typography, Button, List, Space, Tag } from 'antd';
 import { 
   InboxOutlined, 
   ExportOutlined, 
@@ -8,6 +8,7 @@ import {
   ArrowUpOutlined,
   ArrowDownOutlined
 } from '@ant-design/icons';
+const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null };
 
 const { Title } = Typography;
 
@@ -21,76 +22,37 @@ const Dashboard = ({ onNavigate }) => {
   });
 
   const [recentActivities, setRecentActivities] = useState([]);
-  const [lowStockItems, setLowStockItems] = useState([]);
+  const [lowStock, setLowStock] = useState([]);
 
   useEffect(() => {
-    // 模拟数据加载
-    setStatistics({
-      totalParts: 156,
-      totalOrders: 23,
-      totalStockIn: 89,
-      totalStockOut: 67,
-      lowStockItems: 8
-    });
-
-    setRecentActivities([
-      {
-        key: '1',
-        type: '入库',
-        part: '戴尔 OptiPlex 7010',
-        quantity: 5,
-        date: '2024-01-15 14:30',
-        operator: '张三'
-      },
-      {
-        key: '2',
-        type: '出库',
-        part: '金士顿 DataTraveler 32GB',
-        quantity: 10,
-        date: '2024-01-15 13:15',
-        operator: '李四'
-      },
-      {
-        key: '3',
-        type: '入库',
-        part: 'H3C S5120-28P-LI',
-        quantity: 2,
-        date: '2024-01-15 11:45',
-        operator: '王五'
-      },
-      {
-        key: '4',
-        type: '出库',
-        part: '罗技 K120 键盘',
-        quantity: 8,
-        date: '2024-01-15 10:20',
-        operator: '赵六'
+    const loadData = async () => {
+      try {
+        if (!ipcRenderer) return;
+        
+        // 加载统计数据
+        const stats = await ipcRenderer.invoke('dashboard:statistics');
+        if (stats) {
+          setStatistics(stats);
+        }
+        
+        // 加载最近活动
+        const activities = await ipcRenderer.invoke('dashboard:recentActivities');
+        if (activities) {
+          setRecentActivities(activities);
+        }
+        
+        // 加载低库存数据
+        const lowStockData = await ipcRenderer.invoke('inventory:lowStock');
+        if (lowStockData) {
+          setLowStock(lowStockData);
+        }
+        
+      } catch (e) {
+        console.error('加载仪表盘数据失败:', e);
       }
-    ]);
-
-    setLowStockItems([
-      {
-        key: '1',
-        part: '戴尔 OptiPlex 7010',
-        currentStock: 2,
-        minStock: 5,
-        percentage: 40
-      },
-      {
-        key: '2',
-        part: '金士顿 DataTraveler 32GB',
-        currentStock: 15,
-        minStock: 50,
-        percentage: 30
-      },
-      {
-        key: '3',
-        part: '罗技 K120 键盘',
-        currentStock: 5,
-        minStock: 20,
-        percentage: 25
-      }
-    ]);
+    };
+    
+    loadData();
   }, []);
 
   const activityColumns = [
@@ -158,6 +120,10 @@ const Dashboard = ({ onNavigate }) => {
       )
     }
   ];
+
+  const gotoInventory = () => {
+    onNavigate && onNavigate('inventory', false);
+  };
 
   return (
     <div>
@@ -276,12 +242,21 @@ const Dashboard = ({ onNavigate }) => {
           </Card>
         </Col>
         <Col span={8}>
-          <Card title="低库存警告" style={{ marginBottom: 16 }}>
-            <Table 
-              columns={lowStockColumns} 
-              dataSource={lowStockItems} 
-              pagination={false}
-              size="small"
+          <Card title="低库存预警" extra={<Button type="link" onClick={gotoInventory}>查看全部</Button>}>
+            <List
+              dataSource={lowStock.slice(0, 5)}
+              locale={{ emptyText: '暂无低库存' }}
+              renderItem={(item) => (
+                <List.Item>
+                  <Space>
+                    <Tag color="red">低</Tag>
+                    <span style={{ minWidth: 140 }}>{item.model_code}</span>
+                    <span>{item.model_name}</span>
+                    <span>当前 {item.current}{item.unit || '个'}</span>
+                    <span>阈值 {item.min_threshold}</span>
+                  </Space>
+                </List.Item>
+              )}
             />
           </Card>
         </Col>

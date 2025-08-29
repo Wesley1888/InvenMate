@@ -12,7 +12,8 @@ import {
   Typography,
   Tag,
   Tooltip,
-  Popconfirm
+  Popconfirm,
+  InputNumber
 } from 'antd';
 import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import partModelsService from '../services/partModelsService';
@@ -137,6 +138,12 @@ const PartModels = () => {
       dataIndex: 'unit',
       key: 'unit',
       width: 80,
+    },
+    {
+      title: '最低库存',
+      dataIndex: 'min_threshold',
+      key: 'min_threshold',
+      width: 100,
     },
     {
       title: '描述',
@@ -321,6 +328,14 @@ const PartModels = () => {
                 </Option>
               ))}
             </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="min_threshold"
+            label="最低库存"
+            rules={[{ type: 'number', min: 0, message: '不得小于0' }]}
+          >
+            <InputNumber min={0} style={{ width: '100%' }} placeholder="低于该数量触发预警" />
           </Form.Item>
 
           <Form.Item
